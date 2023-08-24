@@ -10,7 +10,7 @@
             },
             "type": "shell",
             "windows": {
-                "command": "rsvars.bat && msbuild Project1.dproj /t:Clean,Make /p:Config=Debug /verbosity:minimal /p:platform=Win64",
+                "command": "rsvars.bat && msbuild Project1.dproj /t:Clean,Make /p:Config=Debug /verbosity:minimal /p:platform=Win64 && if exist Project1.res rm Project1.res",
                 "options": {
                     "shell": {
                         "executable": "cmd.exe",

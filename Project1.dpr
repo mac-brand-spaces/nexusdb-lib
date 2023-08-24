@@ -23,8 +23,6 @@ uses
   database in 'src\database.pas',
   databases in 'src\databases.pas';
 
-{$R *.res}
-
 type
   CBool = (cFalse = 0, cTrue = 1);
 
