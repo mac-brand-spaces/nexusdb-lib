@@ -1,0 +1,28 @@
+{
+    "version": "2.0.0",
+    "runner": "terminal",
+    "tasks": [
+        {
+            "label": "Build Project1",
+            "group": "build",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "type": "shell",
+            "windows": {
+                "command": "rsvars.bat && msbuild Project1.dproj /t:Clean,Make /p:Config=Debug /verbosity:minimal /p:platform=Win64",
+                "options": {
+                    "shell": {
+                        "executable": "cmd.exe",
+                        "args": [
+                            "/c"
+                        ]
+                    },
+                    "env": {
+                        "path": "${env:path};C:\\Program Files (x86)\\Embarcadero\\Studio\\22.0\\bin"
+                    }
+                }
+            }
+        }
+    ]
+}
