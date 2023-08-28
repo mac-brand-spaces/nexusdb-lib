@@ -8,7 +8,7 @@ type
   PCStr16 = ^CStr16;
   CStr16 = record
     p: Pointer;
-    len: Int64;
+    len: UInt64;
     function ToString: string;
     class function FromString(const s: string): PCStr16; static;
     class function Free(p: PCStr16): boolean; static;
