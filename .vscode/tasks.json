@@ -23,6 +23,13 @@
                     }
                 }
             }
+        },
+        {
+            "label": "make build",
+            "type": "shell",
+            "windows": {
+                "command": "make build",
+            },
         }
     ]
 }
