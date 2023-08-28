@@ -3,7 +3,6 @@ unit databases;
 interface
 
 uses
-  Winapi.Windows,
   SysUtils,
   Classes,
   database;
@@ -17,9 +16,6 @@ type
   TDatabases = class
   private
     FDatabases: TArray<TDatabaseRec>;
-
-    function FGetDatabase(index: Integer; out database: TDatabase): Boolean;
-    function FGetDatabaseId(index: Integer; out id: String): Boolean;
 
     function NewId: String;
   public
@@ -82,16 +78,6 @@ begin
   Exit(database.Id);
 end;
 
-function TDatabases.FGetDatabase(index: Integer; out database: TDatabase): Boolean;
-begin
-  if (index >= 0) and (index < Length(self.FDatabases)) then
-  begin
-    database := self.FDatabases[index].Database;
-    Exit(True);
-  end;
-  Exit(False);
-end;
-
 function TDatabases.GetDatabaseById(id: string; out database: TDatabase): Boolean;
 var
   databaseRec: TDatabaseRec;
@@ -103,16 +89,6 @@ begin
       database := databaseRec.Database;
       Exit(True);
     end;
-  end;
-  Exit(False);
-end;
-
-function TDatabases.FGetDatabaseId(index: Integer; out id: String): Boolean;
-begin
-  if (index >= 0) and (index < Length(self.FDatabases)) then
-  begin
-    id := self.FDatabases[index].Id;
-    Exit(True);
   end;
   Exit(False);
 end;

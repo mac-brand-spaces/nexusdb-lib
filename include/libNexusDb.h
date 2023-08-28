@@ -1,7 +1,8 @@
 /* libNexusDb.h
-
   Header File for libNexusDb.dll
 */
+
+#pragma once
 
 #ifndef __LIBNEXUSDB_H__
 #define __LIBNEXUSDB_H__ __declspec(dllimport)
@@ -18,16 +19,25 @@
 extern "C"
 {
 #endif
+  struct NxStr16
+  {
+    char16_t *str;
+    size_t len;
+  };
+  typedef NxStr16 *NxStr16Ptr;
 
-  __LIBNEXUSDB_H__ char16_t *NEXUSDB_API AddDatabase();
-  __LIBNEXUSDB_H__ char16_t *NEXUSDB_API AddRemoteDatabase();
+  __LIBNEXUSDB_H__ bool NEXUSDB_API FreeString(NxStr16Ptr s);
+  __LIBNEXUSDB_H__ NxStr16Ptr NEXUSDB_API AddDatabase(NxStr16Ptr path);
+  __LIBNEXUSDB_H__ NxStr16Ptr NEXUSDB_API AddRemoteDatabase(NxStr16Ptr host, NxStr16Ptr alias, NxStr16Ptr username, NxStr16Ptr password);
+  __LIBNEXUSDB_H__ NxStr16Ptr NEXUSDB_API ExecuteSql(NxStr16Ptr dbId, NxStr16Ptr sql, NxStr16Ptr params = NULL);
+  __LIBNEXUSDB_H__ bool NEXUSDB_API CloseDatabase(NxStr16Ptr dbId);
 
-  __LIBNEXUSDB_H__ bool NEXUSDB_API SetUsername(char16_t *dbId, char16_t *username);
-  __LIBNEXUSDB_H__ bool NEXUSDB_API SetPassword(char16_t *dbId, char16_t *password);
-  __LIBNEXUSDB_H__ bool NEXUSDB_API SetHost(char16_t *dbId, char16_t *server);
-
-  __LIBNEXUSDB_H__ bool NEXUSDB_API Connect(char16_t *dbId);
-  __LIBNEXUSDB_H__ bool NEXUSDB_API CloseDatabase(char16_t *dbId);
+  // typedefs
+  typedef bool(__stdcall *FreeStringPtr)(NxStr16Ptr s);
+  typedef NxStr16Ptr(__stdcall *AddRemoteDatabasePtr)(NxStr16Ptr host, NxStr16Ptr alias, NxStr16Ptr username, NxStr16Ptr password);
+  typedef NxStr16Ptr(__stdcall *AddDatabasePtr)(NxStr16Ptr path);
+  typedef NxStr16Ptr(__stdcall *ExecuteSqlPtr)(NxStr16Ptr dbId, NxStr16Ptr sql, NxStr16Ptr params);
+  typedef bool(__stdcall *CloseDatabasePtr)(NxStr16Ptr dbId);
 
 #ifdef __cplusplus
 }

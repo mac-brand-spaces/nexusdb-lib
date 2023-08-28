@@ -16,15 +16,12 @@
   der Bibliothek aufgenommen werden. }
 
 uses
-  Winapi.Windows,
-  Vcl.Clipbrd,
   System.SysUtils,
   System.Classes,
+  System.JSON,
+  helper in 'src\helper.pas',
   database in 'src\database.pas',
   databases in 'src\databases.pas';
-
-type
-  CBool = (cFalse = 0, cTrue = 1);
 
 const
   DLL_PROCESS_DETACH = 0;
@@ -32,30 +29,16 @@ const
 var
   RealDllProc: TDLLProc;
   Databases: TDatabases;
-  LastMessage: array[0..255] of Char;
-
-function StrResult(const S: String): Pointer;
-var
-  i: 0..255;
-begin
-  Result := @LastMessage;
-  for i := 0 to 254 do
-    if i < Length(S) then
-      LastMessage[i] := S[i+1]
-    else
-      LastMessage[i] := #0;
-end;
 
 procedure Initialize;
 begin
-  OutputDebugString(PChar('Initialize, res: ' + IntToHex(Int64(@StrResult))));
   Databases := TDatabases.Create;
 end;
 
 procedure Finalize();
 begin
-  OutputDebugString(PChar('Finalize'));
-  Databases.Free;
+  if Assigned(Databases) then
+    Databases.Free;
 end;
 
 procedure FakeDllProc(Reason: Integer); stdcall;
@@ -66,81 +49,135 @@ end;
 
 // Exported functions
 
-function AddDatabase: Pointer; stdcall;
+function FreeString(S: PCStr16): CBool; stdcall;
 begin
-  Result := StrResult(Databases.CreateDatabase(TDbMode.local));
+  CStr16.Free(S);
+  Result := cTrue;
 end;
 
-function AddRemoteDatabase: Pointer; stdcall;
-begin
-  Result := StrResult(Databases.CreateDatabase(TDbMode.remote));
-end;
-
-function SetUsername(DatabaseId: Pointer; Username: Pointer): CBool; stdcall;
+function AddDatabase(aliasPath: PCStr16): PCStr16; stdcall;
 var
-  Database: TDatabase;
+  sId: string;
+  database: TDatabase;
+  json: TJsonObject;
 begin
-  if Databases.GetDatabaseById(WideCharToString(DatabaseId), Database) then
+  json := TJsonObject.Create;
+  json.AddPair('mode', 'local');
+  json.AddPair('aliasPath', aliasPath^.ToString());
+  // cretae database
+  sId := Databases.CreateDatabase(TDbMode.local);
+  json.AddPair('id', sId);
+  if not Databases.GetDatabaseById(sId, database) then
   begin
-    Database.Username := WideCharToString(Username);
-    exit(cTrue);
+    json.AddPair('error', 'this is a bug <3');
+    json.AddPair('status', 'error');
+  end
+  else
+  begin
+    database.AliasPath := aliasPath^.ToString();
+
+    try
+      database.Connect();
+      json.AddPair('status', 'connected');
+    except
+      on E: Exception do
+      begin
+        json.AddPair('error', E.Message);
+        json.AddPair('status', 'error');
+        Databases.CloseDatabase(sId);
+      end;
+    end;
   end;
-  exit(cFalse);
+  Result := CStr16.FromString(json.ToJSON);
+  json.Free;
 end;
 
-function SetPassword(DatabaseId: Pointer; Password: Pointer): CBool; stdcall;
+function AddRemoteDatabase(host: PCStr16; aliasName: PCStr16; username: PCStr16; password: PCStr16): PCStr16; stdcall;
 var
-  Database: TDatabase;
+  sId: string;
+  database: TDatabase;
+  json: TJsonObject;
 begin
-  
-  if Databases.GetDatabaseById(WideCharToString(DatabaseId), Database) then
+  json := TJsonObject.Create;
+  json.AddPair('mode', 'remote');
+  json.AddPair('host', host^.ToString());
+  json.AddPair('aliasName', aliasName^.ToString());
+  json.AddPair('username', username^.ToString());
+  // create database
+  sId := Databases.CreateDatabase(TDbMode.remote);
+  json.AddPair('id', sId);
+  if not Databases.GetDatabaseById(sId, database) then
   begin
-    Database.Password := WideCharToString(Password);
-    exit(cTrue);
+    json.AddPair('error', 'this is a bug <3');
+    json.AddPair('status', 'error');
+  end
+  else
+  begin
+    database.AliasName := aliasName^.ToString();
+    database.RemoteHost := host^.ToString();
+    database.Username := username^.ToString();
+    database.Password := password^.ToString();
+    try
+      database.Connect();
+      json.AddPair('status', 'connected');
+    except
+      on E: Exception do
+      begin
+        json.AddPair('error', E.Message);
+        json.AddPair('status', 'error');
+        Databases.CloseDatabase(sId);
+      end;
+    end;
   end;
+  Result := CStr16.FromString(json.ToJSON);
+  json.Free;
+end;
+
+function CloseDatabase(DatabaseId: PCStr16): CBool; stdcall;
+begin
+  if Databases.CloseDatabase(DatabaseId^.ToString()) then
+    exit(cTrue);
   exit(cFalse);
 end;
 
-function SetHost(DatabaseId: Pointer; Host: Pointer): CBool; stdcall;
+function ExecuteSql(DatabaseId: PCStr16; sql: PCStr16; params: PCStr16 = nil): PCStr16; stdcall;
 var
-  Database: TDatabase;
+  database: TDatabase;
+  json: TJsonObject;
+  res: string;
 begin
-  Clipboard.AsText := IntToHex(Int64(Host));
-  OutputDebugString(PChar('SetHost, res: ' + WideCharToString(Host)));
-  while true do;
-  if Databases.GetDatabaseById(WideCharToString(DatabaseId), Database) then
+  json := TJsonObject.Create;
+
+  if not Databases.GetDatabaseById(DatabaseId^.ToString(), database) then
   begin
-    Database.RemoteHost := WideCharToString(Host);
-    exit(cTrue);
+    json.AddPair('error', 'Database not found');
+    json.AddPair('status', 'error');
+  end
+  else
+  begin
+    try
+      res := database.Execute(sql^.ToString(), params^.ToString());
+      json.AddPair('result', TJsonValue.ParseJSONValue(res));
+      json.AddPair('status', 'success');
+    except
+      on E: Exception do
+      begin
+        json.AddPair('error', E.Message);
+        json.AddPair('status', 'error');
+      end;
+    end;
   end;
-  exit(cFalse);
+
+  Result := CStr16.FromString(json.ToJSON);
+  json.Free;
 end;
 
-function Connect(DatabaseId: Pointer): CBool; stdcall;
-var
-  Database: TDatabase;
-begin
-  if Databases.GetDatabaseById(WideCharToString(DatabaseId), Database) then
-  begin
-    if Database.Connect() then exit(cTrue);
-  end;
-  exit(cFalse);
-end;
-
-function CloseDatabase(DatabaseId: Pointer): CBool; stdcall;
-begin
-  if Databases.CloseDatabase(WideCharToString(DatabaseId)) then
-    exit(cTrue);
-  exit(cFalse);
-end;
 
 exports
+  FreeString,
   AddDatabase,
   AddRemoteDatabase,
-  SetUsername,
-  SetPassword,
-  SetHost,
-  Connect,
+  ExecuteSql,
   CloseDatabase;
 
 begin

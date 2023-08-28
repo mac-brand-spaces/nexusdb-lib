@@ -1,5 +1,4 @@
 unit database;
-
 interface
 
 uses
@@ -7,12 +6,16 @@ uses
   Classes,
   Data.DB,
   System.JSON,
-  
+  System.Generics.Collections,
+
   nxdb,
   nxsdServerEngine,
+  nxsrServerEngine,
   nxreRemoteServerEngine,
   nxllTransport,
-  // nxptBasePooledTransport,
+  nxseAutoComponent,
+  nxsrSqlEngineBase,
+  nxsqlEngine,
   nxtwWinsockTransport;
 
 type
@@ -29,7 +32,9 @@ type
     FPassword: string;
 
     FTransport: TnxWinsockTransport;
-    FServerEngine: TnxRemoteServerEngine;
+    FRemoteServerEngine: TnxRemoteServerEngine;
+    FServerEngine: TnxServerEngine;
+    FSqlEngine: TnxSqlEngine;
     FDb: TnxDatabase;
     FSession: TnxSession;
     FQuery: TnxQuery;
@@ -76,13 +81,19 @@ begin
   self.FDb.Session := self.FSession;
 
   case self.FMode of
-    local: ;
+    local:
+    begin
+      self.FServerEngine := TnxServerEngine.Create(nil);
+      self.FSession.ServerEngine := self.FServerEngine;
+      self.FSqlEngine := TnxSqlEngine.Create(nil);
+      self.FServerEngine.SqlEngine := self.FSqlEngine;
+    end;
     remote:
     begin
-      self.FServerEngine := TnxRemoteServerEngine.Create(nil);
+      self.FRemoteServerEngine := TnxRemoteServerEngine.Create(nil);
       self.FTransport := TnxWinsockTransport.Create(nil);
-      self.FServerEngine.Transport := self.FTransport;
-      self.FSession.ServerEngine := self.FServerEngine;
+      self.FRemoteServerEngine.Transport := self.FTransport;
+      self.FSession.ServerEngine := self.FRemoteServerEngine;
     end;
   end;
 
@@ -110,17 +121,19 @@ begin
       local:
       begin
         self.FDb.AliasPath := self.FAliasPath;
-        self.FDb.AliasName := self.FAliasName;
+        if not DirectoryExists(self.FAliasPath) then
+          ForceDirectories(self.FAliasPath);
       end;
       remote:
       begin
+        self.FDb.AliasName := self.FAliasName;
         self.FTransport.ServerName := self.FRemoteHost;
         self.FSession.UserName := self.FUsername;
         self.FSession.Password := self.FPassword;
       end;
     end;
 
-    self.FDb.Connected := True;
+    self.FDb.Connect;
     Result := self.FDb.Connected;
   end
   else
@@ -131,7 +144,7 @@ function TDatabase.FDisconnect: Boolean;
 begin
   if self.FDb.Connected then
   begin
-    self.FDb.Connected := False;
+    self.FDb.Close;
     Result := not self.FDb.Connected;
   end
   else
@@ -140,7 +153,7 @@ end;
 
 procedure TDatabase.FSetAliasName(value: string);
 begin
-  if (not self.FConnected) and (self.FMode = TDbMode.local) then
+  if (not self.FConnected) and (self.FMode = TDbMode.remote) then
     self.FAliasName := value;
 end;
 
@@ -175,7 +188,7 @@ var
   ANewParam: TParam;
 
   AResult: TJSONArray;
-  ANewResoltItem: TJSONObject;
+  ANewResultItem: TJSONObject;
 begin
   AResult := TJSONArray.Create;
 
@@ -201,20 +214,23 @@ begin
   if self.Connected then
   begin
     self.FQuery.SQL.Text := query;
-    self.FQuery.Open;
+    self.FQuery.Open();
 
-    // get result
-    self.FQuery.First;
-    while not self.FQuery.Eof do
+    if self.FQuery.Active then
     begin
-      ANewResoltItem := TJSONObject.Create;
-      for AIParam := 0 to self.FQuery.FieldCount - 1 do
-        ANewResoltItem.AddPair(self.FQuery.Fields[AIParam].FieldName, self.FQuery.Fields[AIParam].AsString);
+      // get result
+      self.FQuery.First;
+      while not self.FQuery.Eof do
+      begin
+        ANewResultItem := TJSONObject.Create;
+        for AIParam := 0 to self.FQuery.FieldCount - 1 do
+          ANewResultItem.AddPair(self.FQuery.Fields[AIParam].FieldName, self.FQuery.Fields[AIParam].AsString);
 
-      AResult.AddElement(ANewResoltItem);
-      self.FQuery.Next;
+        AResult.AddElement(ANewResultItem);
+        self.FQuery.Next;
+      end;
+      self.FQuery.Close;
     end;
-    self.FQuery.Close;
   end;
   
   Result := AResult.ToJSON;
