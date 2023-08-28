@@ -19,11 +19,11 @@
 extern "C"
 {
 #endif
-  struct NxStr16
+  typedef struct
   {
     char16_t *str;
     size_t len;
-  };
+  } NxStr16;
   typedef NxStr16 *NxStr16Ptr;
 
   __LIBNEXUSDB_H__ bool NEXUSDB_API FreeString(NxStr16Ptr s);
